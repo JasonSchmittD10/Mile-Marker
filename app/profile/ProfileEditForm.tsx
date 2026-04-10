@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { updateProfile } from './actions';
 
 const CREW_OPTIONS = [
@@ -22,8 +23,10 @@ interface Props {
 }
 
 export default function ProfileEditForm({ athleteId, initial }: Props) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [verse, setVerse] = useState(initial.motivating_verse ?? '');
   const [verseRef, setVerseRef] = useState(initial.motivating_verse_ref ?? '');
   const [bio, setBio] = useState(initial.bio ?? '');
@@ -31,6 +34,7 @@ export default function ProfileEditForm({ athleteId, initial }: Props) {
 
   async function handleSave() {
     setSaving(true);
+    setError(null);
     try {
       await updateProfile(athleteId, {
         motivating_verse: verse,
@@ -39,8 +43,10 @@ export default function ProfileEditForm({ athleteId, initial }: Props) {
         ministry_group: crew,
       });
       setOpen(false);
+      router.refresh();
     } catch (e) {
       console.error(e);
+      setError('Something went wrong. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -103,6 +109,7 @@ export default function ProfileEditForm({ athleteId, initial }: Props) {
         </select>
         <p className="text-xs text-gray-400 mt-1">Used in the weekly crew battle leaderboard.</p>
       </div>
+      {error && <p className="text-xs text-red-500">{error}</p>}
       <div className="flex gap-2">
         <button
           onClick={() => setOpen(false)}

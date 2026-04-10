@@ -29,8 +29,6 @@ export async function GET(request: NextRequest) {
           firstname: athlete.firstname,
           lastname: athlete.lastname,
           profile_medium: athlete.profile_medium,
-          strava_profile_url: athlete.profile_medium ?? null,
-          city: athlete.city ?? null,
           access_token,
           refresh_token,
           token_expires_at: expires_at,
