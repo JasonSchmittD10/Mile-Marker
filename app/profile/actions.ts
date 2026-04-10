@@ -32,6 +32,7 @@ export async function updateProfile(athleteId: string, data: ProfileUpdate) {
     .eq('id', athleteId);
 
   if (error) {
+    console.error('updateProfile error:', error.message, error.details, error.hint);
     throw new Error(`Failed to update profile: ${error.message}`);
   }
 
