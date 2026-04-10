@@ -1,48 +1,65 @@
 export const dynamic = 'force-dynamic';
-export const revalidate = 3600; // Refresh articles hourly
+export const revalidate = 3600;
+
+import Link from 'next/link';
 
 interface Article {
   title: string;
   description: string;
-  url: string;
   date: string;
   slug: string;
 }
 
 async function fetchArticles(): Promise<Article[]> {
   try {
-    // Framer sites embed a search index reference in the page HTML
     const html = await fetch('https://www.miletwentylabs.com/the-lab', {
       next: { revalidate: 3600 },
     }).then((r) => r.text());
 
+    // Try Framer search index (broad pattern)
     const indexMatch = html.match(
-      /https:\/\/framerusercontent\.com\/sites\/[A-Za-z0-9]+\/searchIndex-[A-Za-z0-9]+\.json/
+      /https:\/\/framerusercontent\.com\/[^"'\s]+searchIndex[^"'\s]+\.json/
     );
-    if (!indexMatch) return [];
 
-    const raw: unknown = await fetch(indexMatch[0], {
-      next: { revalidate: 3600 },
-    }).then((r) => r.json());
+    if (indexMatch) {
+      const raw: unknown = await fetch(indexMatch[0], {
+        next: { revalidate: 3600 },
+      }).then((r) => r.json());
 
-    type RawPage = { path?: string; title?: string; excerpt?: string; description?: string; date?: string };
-    const data: RawPage[] = Array.isArray(raw) ? (raw as RawPage[]) : [];
+      type RawPage = { path?: string; title?: string; excerpt?: string; description?: string; date?: string };
+      const data: RawPage[] = Array.isArray(raw) ? (raw as RawPage[]) : [];
 
-    const pages: Article[] = data
-      .filter(
-        (p) =>
-          typeof p.path === 'string' &&
-          p.path.startsWith('/the-lab/') &&
-          p.path !== '/the-lab'
-      )
-      .map((p) => ({
-        title: p.title ?? '',
-        description: p.excerpt ?? p.description ?? '',
-        url: `https://www.miletwentylabs.com${p.path ?? ''}`,
-        date: p.date ?? '',
-        slug: (p.path ?? '').split('/').pop() ?? '',
-      }))
-      .filter((a) => a.title);
+      const pages = data
+        .filter((p) => typeof p.path === 'string' && p.path.startsWith('/the-lab/') && p.path !== '/the-lab')
+        .map((p) => ({
+          title: p.title ?? '',
+          description: p.excerpt ?? p.description ?? '',
+          date: p.date ?? '',
+          slug: (p.path ?? '').split('/').pop() ?? '',
+        }))
+        .filter((a) => a.title && a.slug);
+
+      if (pages.length > 0) return pages;
+    }
+
+    // Fallback: extract article links directly from HTML
+    const linkPattern = /href="(\/the-lab\/([^"]+))"/g;
+    const seen = new Set<string>();
+    const pages: Article[] = [];
+    let m;
+    while ((m = linkPattern.exec(html)) !== null) {
+      const slug = m[2];
+      if (!slug || seen.has(slug)) continue;
+      seen.add(slug);
+
+      // Try to find a nearby title in the HTML (look for text around the link)
+      const pos = m.index;
+      const chunk = html.slice(Math.max(0, pos - 400), pos + 400);
+      const headingMatch = chunk.match(/<h[1-4][^>]*>([^<]+)<\/h[1-4]>/i);
+      const title = headingMatch?.[1]?.trim() ?? slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+      pages.push({ title, description: '', date: '', slug });
+    }
 
     return pages;
   } catch (err) {
@@ -58,12 +75,8 @@ function formatDate(dateStr: string) {
       month: 'long', day: 'numeric', year: 'numeric',
     });
   } catch {
-    return dateStr; // already formatted like "Jul 14, 2025"
+    return dateStr;
   }
-}
-
-function slugToReadable(slug: string) {
-  return slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 export default async function ResourcesPage() {
@@ -78,31 +91,20 @@ export default async function ResourcesPage() {
 
       {articles.length === 0 ? (
         <div className="bg-white border border-gray-200 rounded-xl p-8 text-center">
-          <div className="text-3xl mb-3">📖</div>
           <p className="text-sm text-gray-500">No articles found. Check back soon.</p>
-          <a
-            href="https://www.miletwentylabs.com/the-lab"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-4 inline-block text-sm text-[#1D9E75] hover:underline"
-          >
-            Visit The Lab →
-          </a>
         </div>
       ) : (
         <div className="space-y-3">
           {articles.map((article) => (
-            <a
+            <Link
               key={article.slug}
-              href={article.url}
-              target="_blank"
-              rel="noopener noreferrer"
+              href={`/resources/${article.slug}`}
               className="block bg-white border border-gray-200 rounded-xl p-5 hover:border-gray-300 hover:shadow-sm transition-all group"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <h2 className="text-sm font-semibold text-gray-900 leading-snug group-hover:text-[#1D9E75] transition-colors">
-                    {article.title || slugToReadable(article.slug)}
+                    {article.title}
                   </h2>
                   {article.description && (
                     <p className="text-xs text-gray-500 mt-1.5 leading-relaxed line-clamp-2">
@@ -126,21 +128,10 @@ export default async function ResourcesPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                 </svg>
               </div>
-            </a>
+            </Link>
           ))}
         </div>
       )}
-
-      <div className="text-center pt-2">
-        <a
-          href="https://www.miletwentylabs.com/the-lab"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
-        >
-          miletwentylabs.com/the-lab ↗
-        </a>
-      </div>
     </div>
   );
 }

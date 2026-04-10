@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import {
   isMockMode,
   MOCK_ATHLETES_WITH_STATS,
@@ -6,9 +5,29 @@ import {
   MOCK_BADGES,
 } from '@/mock/data';
 import type { AthleteWithStats } from '@/types';
+import HeatmapClient from '@/app/heatmap/HeatmapClient';
 
 const RALEIGH_TO_JERUSALEM_MILES = 5843;
 const MILESTONES = [1000, 2000, 3500, 5000];
+
+async function getPolylines(): Promise<string[]> {
+  if (isMockMode) {
+    return [
+      'wqwfEzravNkBtA}CxBqBjBoCtBqAnAs@n@cCxBkCxBgBdBwAbBmAxB_AzBo@lCc@hC',
+      '_nwfEzravNsBtAmCxByBjByBtBoAnAcAn@kCxBiCxBeBdBqBbBwAxBeAtBo@lCe@hC',
+    ];
+  }
+  const { createClient } = await import('@/lib/supabase/server');
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('activities')
+    .select('summary_polyline')
+    .not('summary_polyline', 'is', null)
+    .not('summary_polyline', 'eq', '');
+  return (data ?? [])
+    .map((a: { summary_polyline: string | null }) => a.summary_polyline)
+    .filter(Boolean) as string[];
+}
 
 function Avatar({ initials, avatarBg, avatarText }: { initials: string; avatarBg: string; avatarText: string }) {
   return (
@@ -96,7 +115,8 @@ async function getClubData() {
 }
 
 export default async function ClubPage() {
-  const { totalMembers, milesThisMonth, activitiesThisMonth, totalBadges, totalMilesEver, roster } = await getClubData();
+  const [{ totalMembers, milesThisMonth, activitiesThisMonth, totalBadges, totalMilesEver, roster }, polylines] =
+    await Promise.all([getClubData(), getPolylines()]);
   const routeProgress = Math.min(100, (totalMilesEver / RALEIGH_TO_JERUSALEM_MILES) * 100);
 
   return (
@@ -158,33 +178,10 @@ export default async function ClubPage() {
       </div>
 
       {/* Heatmap */}
-      <Link
-        href="/heatmap"
-        className="flex items-center justify-between bg-white border border-gray-200 rounded-xl p-4 hover:border-gray-300 hover:shadow-sm transition-all group"
-      >
-        <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-lg bg-[#1D9E75]/10 flex items-center justify-center">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-[#1D9E75]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <rect x="3" y="4" width="3" height="3" rx="0.5" />
-              <rect x="7" y="4" width="3" height="3" rx="0.5" />
-              <rect x="11" y="4" width="3" height="3" rx="0.5" />
-              <rect x="3" y="8" width="3" height="3" rx="0.5" />
-              <rect x="7" y="8" width="3" height="3" rx="0.5" />
-              <rect x="11" y="8" width="3" height="3" rx="0.5" />
-              <rect x="3" y="12" width="3" height="3" rx="0.5" />
-              <rect x="7" y="12" width="3" height="3" rx="0.5" />
-              <rect x="11" y="12" width="3" height="3" rx="0.5" />
-            </svg>
-          </div>
-          <div>
-            <div className="text-sm font-medium text-gray-900">Club Heatmap</div>
-            <div className="text-xs text-gray-400 mt-0.5">Activity grid for all members</div>
-          </div>
-        </div>
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-300 group-hover:text-gray-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-        </svg>
-      </Link>
+      <section>
+        <h2 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">Community Heatmap</h2>
+        <HeatmapClient polylines={polylines} />
+      </section>
 
       {/* Member roster */}
       <section>
