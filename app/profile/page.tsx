@@ -300,6 +300,17 @@ export default async function ProfilePage() {
           <BackfillButton />
         </div>
       )}
+
+      {!isMockMode && (
+        <div className="pb-6">
+          <a
+            href="/api/auth/logout"
+            className="block w-full text-center border border-red-200 text-red-500 rounded-xl py-2.5 text-sm font-medium hover:bg-red-50 transition-colors"
+          >
+            Log out
+          </a>
+        </div>
+      )}
     </div>
   );
 }
