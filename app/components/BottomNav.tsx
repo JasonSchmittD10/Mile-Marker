@@ -70,7 +70,7 @@ export default function BottomNav({ initials, profileImageUrl }: Props) {
   return (
     <nav
       className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}
     >
       <div className="max-w-2xl mx-auto flex items-stretch">
         {navItems.map(({ href, label, Icon }) => {
