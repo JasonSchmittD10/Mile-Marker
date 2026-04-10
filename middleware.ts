@@ -8,6 +8,7 @@ export async function middleware(request: NextRequest) {
   // Allow public routes
   if (
     pathname.startsWith('/login') ||
+    pathname.startsWith('/join-club') ||
     pathname.startsWith('/api/') ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/favicon')

@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
-import { BADGE_INFO, ALL_BADGE_TYPES } from '@/types';
+
+
 import {
   isMockMode,
   MOCK_ATHLETES_WITH_STATS,
@@ -7,7 +8,7 @@ import {
   getCurrentISOWeek,
   getISOWeek,
 } from '@/mock/data';
-import type { AthleteWithStats, Badge, Streak, Activity } from '@/types';
+import type { AthleteWithStats, Streak, Activity } from '@/types';
 import ProfileEditForm from './ProfileEditForm';
 import BackfillButton from '@/app/components/BackfillButton';
 
@@ -26,13 +27,36 @@ function getCrewInfo(slug: string | null | undefined) {
   return CREW_MAP[slug] ?? NO_CREW;
 }
 
+const METERS_PER_MILE = 1609.34;
+
+const STD_DISTANCES = [
+  { min: 4800,  max: 5500,  label: '5K' },
+  { min: 9500,  max: 11000, label: '10K' },
+  { min: 20000, max: 22530, label: 'Half Marathon' },
+  { min: 41500, max: 43500, label: 'Marathon' },
+];
+
+function formatPaceProfile(secPerMile: number) {
+  const m = Math.floor(secPerMile / 60);
+  const s = Math.floor(secPerMile % 60);
+  return `${m}:${s.toString().padStart(2, '0')} /mi`;
+}
+
+function formatTimeProfile(seconds: number) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
 function formatMemberSince(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 }
 
 interface ProfileData {
   athlete: AthleteWithStats;
-  badges: Badge[];
+  badges: unknown[];
   streak: Streak | null;
   activities: Activity[];
   activityCount: number;
@@ -57,11 +81,10 @@ async function getProfileData(): Promise<ProfileData | null> {
   const { createClient } = await import('@/lib/supabase/server');
   const supabase = await createClient();
 
-  const [{ data: athlete }, { data: badges }, { data: streak }, { data: activities }] = await Promise.all([
+  const [{ data: athlete }, { data: streak }, { data: activities }] = await Promise.all([
     supabase.from('athletes').select('*').eq('id', athleteId).single(),
-    supabase.from('badges').select('*').eq('athlete_id', athleteId).order('earned_at', { ascending: false }),
     supabase.from('streaks').select('*').eq('athlete_id', athleteId).single(),
-    supabase.from('activities').select('id, start_date_local, distance_meters').eq('athlete_id', athleteId).order('start_date_local', { ascending: false }),
+    supabase.from('activities').select('id, start_date_local, distance_meters, moving_time_seconds').eq('athlete_id', athleteId).order('start_date_local', { ascending: false }),
   ]);
 
   if (!athlete) return null;
@@ -78,7 +101,7 @@ async function getProfileData(): Promise<ProfileData | null> {
 
   return {
     athlete: enriched,
-    badges: badges ?? [],
+    badges: [],
     streak: streak ?? null,
     activities: (activities ?? []) as Activity[],
     activityCount: (activities ?? []).length,
@@ -96,8 +119,8 @@ export default async function ProfilePage() {
     );
   }
 
-  const { athlete, badges, streak, activities, activityCount } = data;
-  const totalMiles = (athlete.totalDistanceMeters ?? 0) / 1609.34;
+  const { athlete, streak, activities, activityCount } = data;
+  const totalMiles = (athlete.totalDistanceMeters ?? 0) / METERS_PER_MILE;
   const crew = getCrewInfo(athlete.ministry_group);
 
   // 12-week dot grid
@@ -110,11 +133,18 @@ export default async function ProfilePage() {
     weekDots.push({ week: wk, active });
   }
 
-  // Badge counts
-  const badgeCounts = new Map<string, number>();
-  for (const b of badges) {
-    badgeCounts.set(b.badge_type, (badgeCounts.get(b.badge_type) ?? 0) + 1);
-  }
+  // PR calculations
+  const longestRun = activities.length > 0 ? Math.max(...activities.map(a => Number(a.distance_meters))) : 0;
+  const validPaced = activities.filter(a => Number(a.distance_meters) > 800 && Number(a.moving_time_seconds) > 0);
+  const bestPaceSecPerMile = validPaced.length > 0
+    ? Math.min(...validPaced.map(a => Number(a.moving_time_seconds) / (Number(a.distance_meters) / METERS_PER_MILE)))
+    : 0;
+  const stdPRs = STD_DISTANCES.map(range => {
+    const matching = activities.filter(a => Number(a.distance_meters) >= range.min && Number(a.distance_meters) <= range.max && Number(a.moving_time_seconds) > 0);
+    if (matching.length === 0) return null;
+    const best = [...matching].sort((a, b) => Number(a.moving_time_seconds) - Number(b.moving_time_seconds))[0];
+    return { label: range.label, time: Number(best.moving_time_seconds) };
+  }).filter((x): x is { label: string; time: number } => x !== null);
 
   // Token status
   const nowSeconds = Math.floor(Date.now() / 1000);
@@ -196,22 +226,18 @@ export default async function ProfilePage() {
       <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
         <h2 className="text-xs font-medium text-gray-400 uppercase tracking-wider">Your stats</h2>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <div className="bg-gray-50 rounded-lg p-3">
             <div className="text-lg font-medium text-gray-900">{totalMiles.toFixed(1)}</div>
             <div className="text-xs text-gray-500">total miles</div>
           </div>
           <div className="bg-gray-50 rounded-lg p-3">
             <div className="text-lg font-medium text-gray-900">{streak?.current_weeks ?? 0}</div>
-            <div className="text-xs text-gray-500">week streak</div>
+            <div className="text-xs text-gray-500">wk streak</div>
           </div>
           <div className="bg-gray-50 rounded-lg p-3">
             <div className="text-lg font-medium text-gray-900">{activityCount}</div>
-            <div className="text-xs text-gray-500">total activities</div>
-          </div>
-          <div className="bg-gray-50 rounded-lg p-3">
-            <div className="text-lg font-medium text-gray-900">{badges.length}</div>
-            <div className="text-xs text-gray-500">badges earned</div>
+            <div className="text-xs text-gray-500">activities</div>
           </div>
         </div>
 
@@ -228,38 +254,37 @@ export default async function ProfilePage() {
             ))}
           </div>
         </div>
-
-        {/* Badge chips */}
-        <div>
-          <div className="text-xs font-medium text-gray-700 mb-2">Badges</div>
-          <div className="flex flex-wrap gap-2">
-            {ALL_BADGE_TYPES.map((type) => {
-              const count = badgeCounts.get(type) ?? 0;
-              const info = BADGE_INFO[type];
-              const earned = count > 0;
-              return (
-                <div
-                  key={type}
-                  title={info.description}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
-                    earned
-                      ? 'bg-[#1D9E75]/10 border-[#1D9E75]/30 text-[#1D9E75]'
-                      : 'bg-transparent border-gray-200 text-gray-400'
-                  }`}
-                >
-                  <span>{info.emoji}</span>
-                  <span>{info.label}</span>
-                  {count > 1 && (
-                    <span className="bg-[#1D9E75] text-white rounded-full h-4 w-4 flex items-center justify-center text-[10px]">
-                      {count}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
       </div>
+
+      {/* Card 4 — Personal Records */}
+      {(longestRun > 0 || stdPRs.length > 0) && (
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <h2 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">Personal Records</h2>
+          <div className="divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden">
+            {longestRun > 0 && (
+              <div className="flex justify-between items-center px-3 py-2.5 bg-gray-50 text-sm">
+                <span className="text-gray-600">Longest run</span>
+                <span className="font-semibold text-gray-900">{(longestRun / METERS_PER_MILE).toFixed(2)} mi</span>
+              </div>
+            )}
+            {bestPaceSecPerMile > 0 && (
+              <div className="flex justify-between items-center px-3 py-2.5 bg-white text-sm">
+                <span className="text-gray-600">Best avg pace</span>
+                <span className="font-semibold text-gray-900">{formatPaceProfile(bestPaceSecPerMile)}</span>
+              </div>
+            )}
+            {stdPRs.map((pr, i) => (
+              <div key={pr.label} className={`flex justify-between items-center px-3 py-2.5 text-sm ${i % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}>
+                <span className="text-gray-600">{pr.label}</span>
+                <span className="font-semibold text-gray-900">{formatTimeProfile(pr.time)}</span>
+              </div>
+            ))}
+          </div>
+          {longestRun === 0 && stdPRs.length === 0 && (
+            <p className="text-sm text-gray-400 italic">Import your Strava activities to see your PRs.</p>
+          )}
+        </div>
+      )}
 
       {/* Card 4 — Strava connection */}
       <div className="bg-white border border-gray-200 rounded-xl p-5">

@@ -46,8 +46,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL('/login?error=db_error', request.url));
     }
 
-    // Set session cookie
-    const response = NextResponse.redirect(new URL('/', request.url));
+    // Redirect new users (no club) to club selection
+    const { data: athleteFull } = await supabase
+      .from('athletes')
+      .select('club_id')
+      .eq('id', athleteRecord.id)
+      .single();
+    const destination = athleteFull?.club_id ? '/' : '/join-club';
+
+    const response = NextResponse.redirect(new URL(destination, request.url));
     response.cookies.set('mm_athlete_id', athleteRecord.id, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

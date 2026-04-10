@@ -4,6 +4,7 @@ import { getValidAccessToken } from '@/lib/strava/oauth';
 import { getActivity } from '@/lib/strava/api';
 import { checkAndAwardBadges } from '@/lib/gamification/badges';
 import { recalculateStreak } from '@/lib/gamification/streaks';
+import { generateHighlights } from '@/lib/gamification/highlights';
 import type { StravaWebhookEvent } from '@/types';
 
 // GET — Strava webhook subscription validation
@@ -86,12 +87,16 @@ async function processWebhookEvent(event: StravaWebhookEvent): Promise<void> {
     return;
   }
 
-  // Award badges
   await checkAndAwardBadges(
     { ...stravaActivity, db_id: insertedActivity.id },
     athlete.id
   );
 
-  // Recalculate streak
+  await generateHighlights(insertedActivity.id, athlete.id, {
+    distance_meters: stravaActivity.distance,
+    moving_time_seconds: stravaActivity.moving_time,
+    start_date_local: stravaActivity.start_date_local,
+  });
+
   await recalculateStreak(athlete.id);
 }

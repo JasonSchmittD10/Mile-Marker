@@ -136,19 +136,19 @@ export default function RaceCard({ race, isAdmin }: Props) {
 
         {/* Countdown */}
         {countdown.done ? (
-          <div className="text-3xl font-bold text-center py-3">Race day! 🏁</div>
+          <div className="text-3xl font-bold text-center py-6">Race day! 🏁</div>
         ) : (
-          <div className="flex items-end justify-center gap-1">
+          <div className="flex items-end justify-center gap-2 py-4">
             {segments.map(({ val, label }, i) => (
-              <div key={label} className="flex items-end gap-1">
+              <div key={label} className="flex items-end gap-2">
                 {i > 0 && (
-                  <span className="text-4xl font-bold text-white/40 pb-5 mx-0.5">:</span>
+                  <span className="text-5xl font-bold text-white/40 pb-7 leading-none">:</span>
                 )}
                 <div className="text-center">
                   <div className="text-6xl font-bold tabular-nums leading-none tracking-tight">
                     {pad(val)}
                   </div>
-                  <div className="text-xs text-white/50 mt-2 tracking-wider">{label}</div>
+                  <div className="text-xs text-white/50 mt-3 tracking-widest uppercase">{label}</div>
                 </div>
               </div>
             ))}

@@ -1,5 +1,5 @@
 import { cookies } from 'next/headers';
-import { BADGE_INFO, ALL_BADGE_TYPES } from '@/types';
+import Link from 'next/link';
 import {
   isMockMode,
   MOCK_ATHLETES_WITH_STATS,
@@ -11,7 +11,7 @@ import {
   getCurrentISOWeek,
   getISOWeek,
 } from '@/mock/data';
-import type { AthleteWithStats, FeedEvent, WeeklyStats, Badge, Streak } from '@/types';
+import type { AthleteWithStats, FeedEvent, WeeklyStats, Streak } from '@/types';
 import RaceCard, { type RaceData } from '@/app/components/RaceCard';
 
 const RALEIGH_TO_JERUSALEM_MILES = 5843;
@@ -29,14 +29,32 @@ function formatRelativeTime(timestamp: string): string {
   return new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-function Avatar({ initials, avatarBg, avatarText, size = 'md' }: { initials: string; avatarBg: string; avatarText: string; size?: 'sm' | 'md' | 'lg' }) {
+function Avatar({ initials, avatarBg, avatarText, size = 'md', imageUrl }: { initials: string; avatarBg: string; avatarText: string; size?: 'sm' | 'md' | 'lg'; imageUrl?: string | null }) {
   const sizeClass = size === 'sm' ? 'h-7 w-7 text-xs' : size === 'lg' ? 'h-12 w-12 text-base' : 'h-9 w-9 text-sm';
+  if (imageUrl) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={imageUrl} alt={initials} className={`${sizeClass} rounded-full object-cover flex-shrink-0`} />;
+  }
   return (
     <div className={`${sizeClass} rounded-full ${avatarBg} ${avatarText} flex items-center justify-center font-medium flex-shrink-0`}>
       {initials}
     </div>
   );
 }
+
+const HIGHLIGHT_EMOJI: Record<string, string> = {
+  distance_pr: '📏',
+  first_5k: '🎽',
+  first_10k: '🎽',
+  first_half_marathon: '🏃',
+  first_marathon: '🏅',
+  monthly_milestone_25: '📅',
+  monthly_milestone_50: '💪',
+  monthly_milestone_75: '🔥',
+  monthly_milestone_100: '⭐',
+  first_club_run: '👋',
+  badge: '🏆',
+};
 
 function ProgressBar({ value, max, color = '#1D9E75' }: { value: number; max: number; color?: string }) {
   const pct = Math.min(100, (value / max) * 100);
@@ -96,20 +114,28 @@ async function getPageData() {
   const totalMilesEver = (allActivities ?? []).reduce((s: number, a: { distance_meters: number }) => s + Number(a.distance_meters), 0) / 1609.34;
   const weeklyStats: WeeklyStats = { membersActive, totalMilesThisWeek, badgesEarnedThisWeek: weekBadgeCount ?? 0, totalMilesEver };
 
-  // Recent badges for feed
-  const { data: recentBadges } = await supabase
-    .from('badges')
+  // Recent highlights for feed
+  const { data: recentHighlights } = await supabase
+    .from('highlights')
     .select('*, athletes(*)')
-    .order('earned_at', { ascending: false })
-    .limit(20);
+    .order('created_at', { ascending: false })
+    .limit(30);
 
-  const feedEvents: FeedEvent[] = (recentBadges ?? []).map((b: { id: string; badge_type: string; earned_at: string; activity_id: string | null; athletes: { id: string; firstname: string; lastname: string; strava_id: number; profile_medium: string | null; access_token: string | null; refresh_token: string | null; token_expires_at: number | null; scopes_accepted: string | null; ministry_group: string | null; created_at: string } }) => ({
-    id: `feed-${b.id}`,
-    type: 'badge' as const,
-    athlete: { ...b.athletes, strava_profile_url: null, city: null, motivating_verse: null, motivating_verse_ref: null, bio: null, initials: `${b.athletes.firstname[0]}${b.athletes.lastname[0]}`, avatarBg: 'bg-teal-100', avatarText: 'text-teal-700' },
-    description: `earned the ${(b.badge_type as string).replace(/_/g, ' ')} badge`,
-    timestamp: b.earned_at,
-    badgeType: b.badge_type as import('@/types').BadgeType,
+  const feedEvents: FeedEvent[] = (recentHighlights ?? []).map((h: {
+    id: string; event_type: string; description: string; created_at: string;
+    athletes: { id: string; firstname: string; lastname: string; strava_profile_url: string | null; ministry_group: string | null; created_at: string; strava_id: number; profile_medium: string | null; access_token: string | null; refresh_token: string | null; token_expires_at: number | null; scopes_accepted: string | null; city: string | null; motivating_verse: string | null; motivating_verse_ref: string | null; bio: string | null; club_id: string | null; is_admin: boolean | null };
+  }) => ({
+    id: `feed-${h.id}`,
+    type: 'highlight' as const,
+    athlete: {
+      ...h.athletes,
+      initials: `${h.athletes.firstname?.[0] ?? '?'}${h.athletes.lastname?.[0] ?? '?'}`,
+      avatarBg: 'bg-teal-100',
+      avatarText: 'text-teal-700',
+    },
+    description: h.description,
+    timestamp: h.created_at,
+    eventType: h.event_type,
   }));
 
   // Current user + admin check
@@ -162,14 +188,6 @@ export default async function HomePage() {
     }
   }
 
-  // Badge counts for logged-in athlete
-  const badgeCounts = new Map<string, number>();
-  if (me?.badges) {
-    for (const b of me.badges) {
-      badgeCounts.set(b.badge_type, (badgeCounts.get(b.badge_type) ?? 0) + 1);
-    }
-  }
-
   const myMilesThisWeek = me
     ? (me.activities ?? [])
         .filter((a) => getISOWeek(new Date(a.start_date_local)) === currentWeek)
@@ -217,17 +235,19 @@ export default async function HomePage() {
         <h2 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">Highlight reel</h2>
         <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
           {feedEvents.length === 0 ? (
-            <p className="p-5 text-sm text-gray-400 text-center">No highlights yet — start logging runs!</p>
+            <p className="p-5 text-sm text-gray-400 text-center">No highlights yet — import your Strava activities to get started!</p>
           ) : (
             feedEvents.map((event) => (
               <div key={event.id} className="flex items-start gap-3 p-4">
-                <Avatar initials={event.athlete.initials} avatarBg={event.athlete.avatarBg} avatarText={event.athlete.avatarText} size="sm" />
+                <Link href={`/athletes/${event.athlete.id}`} className="flex-shrink-0">
+                  <Avatar initials={event.athlete.initials} avatarBg={event.athlete.avatarBg} avatarText={event.athlete.avatarText} size="sm" imageUrl={event.athlete.strava_profile_url} />
+                </Link>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-gray-900">
-                    <span className="font-medium">{event.athlete.firstname}</span>{' '}
+                    <Link href={`/athletes/${event.athlete.id}`} className="font-medium hover:underline">{event.athlete.firstname}</Link>{' '}
                     {event.description}
-                    {event.badgeType && (
-                      <span className="ml-1">{BADGE_INFO[event.badgeType]?.emoji}</span>
+                    {event.eventType && (
+                      <span className="ml-1">{HIGHLIGHT_EMOJI[event.eventType] ?? '🏃'}</span>
                     )}
                   </p>
                   <p className="text-xs text-gray-400 mt-0.5">{formatRelativeTime(event.timestamp)}</p>
@@ -244,7 +264,7 @@ export default async function HomePage() {
           <h2 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">Your stats</h2>
           <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-5">
             <div className="flex items-center gap-3">
-              <Avatar initials={me.initials} avatarBg={me.avatarBg} avatarText={me.avatarText} size="lg" />
+              <Avatar initials={me.initials} avatarBg={me.avatarBg} avatarText={me.avatarText} size="lg" imageUrl={me.strava_profile_url} />
               <div>
                 <div className="font-medium text-gray-900">{me.firstname} {me.lastname}</div>
                 {me.ministry_group && (() => {
@@ -297,32 +317,6 @@ export default async function HomePage() {
               </div>
             </div>
 
-            {/* Badge chips */}
-            <div>
-              <div className="text-xs font-medium text-gray-700 mb-2">Badges</div>
-              <div className="flex flex-wrap gap-2">
-                {ALL_BADGE_TYPES.map((type) => {
-                  const count = badgeCounts.get(type) ?? 0;
-                  const info = BADGE_INFO[type];
-                  const earned = count > 0;
-                  return (
-                    <div
-                      key={type}
-                      title={info.description}
-                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
-                        earned
-                          ? 'bg-[#1D9E75]/10 border-[#1D9E75]/30 text-[#1D9E75]'
-                          : 'bg-transparent border-gray-200 text-gray-400'
-                      }`}
-                    >
-                      <span>{info.emoji}</span>
-                      <span>{info.label}</span>
-                      {count > 1 && <span className="bg-[#1D9E75] text-white rounded-full h-4 w-4 flex items-center justify-center text-[10px]">{count}</span>}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
 
           </div>
         </section>

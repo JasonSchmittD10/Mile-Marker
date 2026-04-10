@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getValidAccessToken } from '@/lib/strava/oauth';
 import { checkAndAwardBadges } from '@/lib/gamification/badges';
 import { recalculateStreak } from '@/lib/gamification/streaks';
+import { generateHighlights } from '@/lib/gamification/highlights';
 import type { StravaActivity } from '@/types';
 
 export async function POST(request: NextRequest) {
@@ -19,31 +20,31 @@ export async function POST(request: NextRequest) {
   try {
     const accessToken = await getValidAccessToken(athleteId);
 
-    // Fetch activities from the past 30 days only
-    const after = Math.floor((Date.now() - 30 * 24 * 60 * 60 * 1000) / 1000);
+    // Fetch ALL activities (no after filter)
     const allActivities: StravaActivity[] = [];
     let page = 1;
     const perPage = 200;
 
     while (true) {
       const res = await fetch(
-        `https://www.strava.com/api/v3/athlete/activities?per_page=${perPage}&page=${page}&after=${after}`,
+        `https://www.strava.com/api/v3/athlete/activities?per_page=${perPage}&page=${page}`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
 
-      if (!res.ok) {
-        throw new Error(`Strava fetch failed: ${res.status}`);
-      }
+      if (!res.ok) throw new Error(`Strava fetch failed: ${res.status}`);
 
       const batch: StravaActivity[] = await res.json();
       if (batch.length === 0) break;
-
       allActivities.push(...batch);
       if (batch.length < perPage) break;
       page++;
     }
 
-    // Upsert each activity (skip ones already in DB)
+    // Sort chronologically (oldest first) so PR detection is accurate
+    allActivities.sort(
+      (a, b) => new Date(a.start_date_local).getTime() - new Date(b.start_date_local).getTime()
+    );
+
     let inserted = 0;
     let skipped = 0;
 
@@ -82,18 +83,18 @@ export async function POST(request: NextRequest) {
         athleteId
       );
 
+      await generateHighlights(inserted_row.id, athleteId, {
+        distance_meters: activity.distance,
+        moving_time_seconds: activity.moving_time,
+        start_date_local: activity.start_date_local,
+      });
+
       inserted++;
     }
 
-    // Recalculate streak once after all inserts
     await recalculateStreak(athleteId);
 
-    return NextResponse.json({
-      success: true,
-      total: allActivities.length,
-      inserted,
-      skipped,
-    });
+    return NextResponse.json({ success: true, total: allActivities.length, inserted, skipped });
   } catch (err) {
     console.error('Backfill error:', err);
     return NextResponse.json({ error: String(err) }, { status: 500 });

@@ -2,7 +2,7 @@ import type { Athlete, Activity, Badge, Streak, AthleteWithStats, FeedEvent, Wee
 
 // ─── Athletes ────────────────────────────────────────────────────────────────
 
-type AthleteSeed = Athlete & { initials: string; avatarBg: string; avatarText: string };
+type AthleteSeed = Omit<Athlete, 'club_id' | 'is_admin'> & Partial<Pick<Athlete, 'club_id' | 'is_admin'>> & { initials: string; avatarBg: string; avatarText: string };
 
 export const MOCK_ATHLETES: AthleteSeed[] = [
   {

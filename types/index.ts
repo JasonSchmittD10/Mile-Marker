@@ -1,3 +1,24 @@
+export interface Club {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  logo_url: string | null;
+  location: string | null;
+  created_at: string;
+}
+
+export interface Highlight {
+  id: string;
+  athlete_id: string;
+  club_id: string | null;
+  event_type: string;
+  activity_id: string | null;
+  value: number | null;
+  description: string;
+  created_at: string;
+}
+
 export interface Athlete {
   id: string;
   strava_id: number;
@@ -9,6 +30,8 @@ export interface Athlete {
   token_expires_at: number | null;
   scopes_accepted: string | null;
   ministry_group: string | null;
+  club_id?: string | null;
+  is_admin?: boolean | null;
   strava_profile_url: string | null;
   city: string | null;
   motivating_verse: string | null;
@@ -87,12 +110,13 @@ export interface WeeklyStats {
 
 export interface FeedEvent {
   id: string;
-  type: 'badge' | 'streak_milestone' | 'first_activity' | 'route_milestone';
+  type: 'highlight' | 'badge' | 'streak_milestone' | 'first_activity' | 'route_milestone';
   athlete: AthleteWithStats;
   description: string;
   timestamp: string;
   badgeType?: BadgeType;
   streakWeeks?: number;
+  eventType?: string;
 }
 
 export interface LeaderboardEntry {
