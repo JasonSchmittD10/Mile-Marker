@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers';
+import BackfillButton from '@/app/components/BackfillButton';
 import { BADGE_INFO, ALL_BADGE_TYPES } from '@/types';
 import {
   isMockMode,
@@ -294,6 +295,8 @@ export default async function HomePage() {
                 })}
               </div>
             </div>
+
+            {!isMockMode && <BackfillButton />}
           </div>
         </section>
       )}
