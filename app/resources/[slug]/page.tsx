@@ -3,64 +3,61 @@ import { notFound } from 'next/navigation';
 
 export const revalidate = 3600;
 
-interface Block {
-  type: 'h1' | 'h2' | 'h3' | 'p';
-  text: string;
-}
+type Entry = {
+  title?: string;
+  description?: string;
+  url?: string;
+  h1?: string[];
+  h2?: string[];
+  h3?: string[];
+  p?: string[];
+};
 
-function decodeEntities(str: string): string {
-  return str
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&quot;/g, '"')
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
-    .replace(/\s+/g, ' ')
-    .trim();
-}
+async function fetchEntry(slug: string): Promise<Entry | null> {
+  try {
+    const html = await fetch('https://www.miletwentylabs.com/the-lab', {
+      next: { revalidate: 3600 },
+    }).then((r) => r.text());
 
-function extractContent(html: string): { title: string; date: string; blocks: Block[] } {
-  // Page title
-  const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-  const title = decodeEntities((titleMatch?.[1] ?? '').replace(/\s*[|\-–]\s*.*$/, ''));
+    const metaMatch = html.match(/<meta[^>]+name="framer-search-index"[^>]+content="([^"]+)"/i)
+      ?? html.match(/<meta[^>]+content="([^"]+)"[^>]+name="framer-search-index"/i);
+    const urlMatch = html.match(/https:\/\/framerusercontent\.com\/[^"'\s]*searchIndex[^"'\s]*\.json/);
+    const indexUrl = metaMatch ? metaMatch[1] : (urlMatch ? urlMatch[0] : null);
+    if (!indexUrl) return null;
 
-  // Date: look for common date patterns in the HTML text
-  const dateMatch = html.match(/(\w+ \d{1,2},?\s+\d{4})/);
-  const date = dateMatch?.[1] ?? '';
+    const raw: unknown = await fetch(indexUrl, { next: { revalidate: 3600 } }).then((r) => r.json());
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
 
-  // Extract headings and paragraphs
-  const blocks: Block[] = [];
-  const tagPattern = /<(h[1-3]|p)(?:\s[^>]*)?>( [\s\S]*?)<\/\1>/gi;
-  let m;
-  while ((m = tagPattern.exec(html)) !== null) {
-    const type = m[1].toLowerCase() as Block['type'];
-    const text = decodeEntities(m[2].replace(/<[^>]+>/g, ' '));
-    if (text.length > 3) blocks.push({ type, text });
+    const index = raw as Record<string, Entry>;
+    return index[`/the-lab/${slug}`] ?? null;
+  } catch {
+    return null;
   }
-
-  // Deduplicate consecutive identical blocks (Framer sometimes dupes content)
-  const deduped = blocks.filter((b, i) => i === 0 || b.text !== blocks[i - 1].text);
-
-  return { title, date, blocks: deduped };
 }
 
 export default async function ArticlePage({ params }: { params: { slug: string } }) {
   const { slug } = params;
-  const url = `https://www.miletwentylabs.com/the-lab/${slug}`;
+  const entry = await fetchEntry(slug);
+  if (!entry || !entry.title) notFound();
 
-  let html: string;
-  try {
-    const res = await fetch(url, { next: { revalidate: 3600 } });
-    if (!res.ok) notFound();
-    html = await res.text();
-  } catch {
-    notFound();
-  }
+  const externalUrl = entry.url ?? `https://www.miletwentylabs.com/the-lab/${slug}`;
 
-  const { title, date, blocks } = extractContent(html);
+  // Interleave headings and paragraphs in order
+  type Block = { type: 'h1' | 'h2' | 'h3' | 'p'; text: string };
+  const blocks: Block[] = [
+    ...(entry.h1 ?? []).map((t) => ({ type: 'h1' as const, text: t })),
+    ...(entry.h2 ?? []).map((t) => ({ type: 'h2' as const, text: t })),
+    ...(entry.h3 ?? []).map((t) => ({ type: 'h3' as const, text: t })),
+    ...(entry.p ?? []).map((t) => ({ type: 'p' as const, text: t })),
+  ];
+  // Paragraphs are the main content — filter headings that duplicate the page title
+  const paragraphs = (entry.p ?? []).filter((t) => t !== entry.title);
+  const subheadings = [
+    ...(entry.h2 ?? []).map((t) => ({ type: 'h2' as const, text: t })),
+    ...(entry.h3 ?? []).map((t) => ({ type: 'h3' as const, text: t })),
+  ];
 
-  if (!title && blocks.length === 0) notFound();
+  void blocks; // used above for reference
 
   return (
     <div className="space-y-5">
@@ -77,33 +74,36 @@ export default async function ArticlePage({ params }: { params: { slug: string }
 
       {/* Article */}
       <div className="bg-white border border-gray-200 rounded-xl p-5">
-        {title && <h1 className="text-lg font-semibold text-gray-900 leading-snug mb-1">{title}</h1>}
-        {date && <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider mb-5">{date}</p>}
+        <h1 className="text-lg font-semibold text-gray-900 leading-snug mb-4">{entry.title}</h1>
 
-        <div className="space-y-3">
-          {blocks.map((block, i) => {
-            if (block.type === 'h1') {
-              return <h2 key={i} className="text-base font-semibold text-gray-900 mt-5">{block.text}</h2>;
-            }
-            if (block.type === 'h2') {
-              return <h3 key={i} className="text-sm font-semibold text-gray-800 mt-4">{block.text}</h3>;
-            }
-            if (block.type === 'h3') {
-              return <h4 key={i} className="text-sm font-medium text-gray-700 mt-3">{block.text}</h4>;
-            }
-            return <p key={i} className="text-sm text-gray-600 leading-relaxed">{block.text}</p>;
-          })}
-        </div>
-
-        {blocks.length === 0 && (
-          <p className="text-sm text-gray-400">Could not load article content.</p>
+        {entry.description && (
+          <p className="text-sm text-gray-500 leading-relaxed mb-5 pb-5 border-b border-gray-100">
+            {entry.description}
+          </p>
         )}
+
+        <div className="space-y-4">
+          {subheadings.length > 0 && paragraphs.length === 0 ? (
+            // Only headings available — render them as an outline
+            subheadings.map((h, i) => (
+              <p key={i} className="text-sm font-medium text-gray-700">{h.text}</p>
+            ))
+          ) : (
+            paragraphs.map((text, i) => (
+              <p key={i} className="text-sm text-gray-600 leading-relaxed">{text}</p>
+            ))
+          )}
+
+          {paragraphs.length === 0 && subheadings.length === 0 && (
+            <p className="text-sm text-gray-400">Full article available on the site below.</p>
+          )}
+        </div>
       </div>
 
       {/* Read on site */}
       <div className="text-center">
         <a
-          href={url}
+          href={externalUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="text-xs text-gray-400 hover:text-gray-600 transition-colors"

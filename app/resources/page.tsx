@@ -16,52 +16,42 @@ async function fetchArticles(): Promise<Article[]> {
       next: { revalidate: 3600 },
     }).then((r) => r.text());
 
-    // Try Framer search index (broad pattern)
-    const indexMatch = html.match(
-      /https:\/\/framerusercontent\.com\/[^"'\s]+searchIndex[^"'\s]+\.json/
-    );
+    // Framer puts the search index URL in a <meta name="framer-search-index"> tag
+    const metaMatch = html.match(/<meta[^>]+name="framer-search-index"[^>]+content="([^"]+)"/i)
+      ?? html.match(/<meta[^>]+content="([^"]+)"[^>]+name="framer-search-index"/i);
 
-    if (indexMatch) {
-      const raw: unknown = await fetch(indexMatch[0], {
+    // Also try finding the URL directly anywhere in the HTML
+    const urlMatch = metaMatch
+      ? [metaMatch[0], metaMatch[1]]
+      : html.match(/https:\/\/framerusercontent\.com\/[^"'\s]*searchIndex[^"'\s]*\.json/);
+
+    const indexUrl = metaMatch ? metaMatch[1] : (urlMatch ? urlMatch[0] : null);
+
+    if (indexUrl) {
+      // Framer search index is a path-keyed object: { "/the-lab/slug": { title, description, url, p[], ... } }
+      const raw: unknown = await fetch(indexUrl, {
         next: { revalidate: 3600 },
       }).then((r) => r.json());
 
-      type RawPage = { path?: string; title?: string; excerpt?: string; description?: string; date?: string };
-      const data: RawPage[] = Array.isArray(raw) ? (raw as RawPage[]) : [];
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        type Entry = { title?: string; description?: string; url?: string; p?: string[] };
+        const index = raw as Record<string, Entry>;
 
-      const pages = data
-        .filter((p) => typeof p.path === 'string' && p.path.startsWith('/the-lab/') && p.path !== '/the-lab')
-        .map((p) => ({
-          title: p.title ?? '',
-          description: p.excerpt ?? p.description ?? '',
-          date: p.date ?? '',
-          slug: (p.path ?? '').split('/').pop() ?? '',
-        }))
-        .filter((a) => a.title && a.slug);
+        const pages = Object.entries(index)
+          .filter(([path]) => path.startsWith('/the-lab/') && path !== '/the-lab/')
+          .map(([path, entry]) => ({
+            title: entry.title ?? '',
+            description: entry.description ?? entry.p?.[0] ?? '',
+            date: '',
+            slug: path.split('/').pop() ?? '',
+          }))
+          .filter((a) => a.title && a.slug);
 
-      if (pages.length > 0) return pages;
+        if (pages.length > 0) return pages;
+      }
     }
 
-    // Fallback: extract article links directly from HTML
-    const linkPattern = /href="(\/the-lab\/([^"]+))"/g;
-    const seen = new Set<string>();
-    const pages: Article[] = [];
-    let m;
-    while ((m = linkPattern.exec(html)) !== null) {
-      const slug = m[2];
-      if (!slug || seen.has(slug)) continue;
-      seen.add(slug);
-
-      // Try to find a nearby title in the HTML (look for text around the link)
-      const pos = m.index;
-      const chunk = html.slice(Math.max(0, pos - 400), pos + 400);
-      const headingMatch = chunk.match(/<h[1-4][^>]*>([^<]+)<\/h[1-4]>/i);
-      const title = headingMatch?.[1]?.trim() ?? slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-
-      pages.push({ title, description: '', date: '', slug });
-    }
-
-    return pages;
+    return [];
   } catch (err) {
     console.error('Failed to fetch articles:', err);
     return [];
