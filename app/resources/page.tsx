@@ -34,14 +34,14 @@ async function fetchArticles(): Promise<Article[]> {
       }).then((r) => r.json());
 
       if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-        type Entry = { title?: string; description?: string; url?: string; p?: string[] };
+        type Entry = { title?: string; description?: string; url?: string; h1?: string[]; p?: string[] };
         const index = raw as Record<string, Entry>;
 
         const pages = Object.entries(index)
           .filter(([path]) => path.startsWith('/the-lab/') && path !== '/the-lab/')
           .map(([path, entry]) => ({
-            title: entry.title ?? '',
-            description: entry.description ?? entry.p?.[0] ?? '',
+            title: (entry.h1 as string[] | undefined)?.[0] ?? entry.title ?? '',
+            description: entry.description ?? (entry.p as string[] | undefined)?.[0] ?? '',
             date: '',
             slug: path.split('/').pop() ?? '',
           }))
