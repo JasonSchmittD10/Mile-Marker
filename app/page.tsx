@@ -1,5 +1,4 @@
 import { cookies } from 'next/headers';
-import BackfillButton from '@/app/components/BackfillButton';
 import { BADGE_INFO, ALL_BADGE_TYPES } from '@/types';
 import {
   isMockMode,
@@ -167,6 +166,47 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-5">
+      {/* Current race */}
+      {(() => {
+        const raceDate = new Date('2026-05-02T07:00:00');
+        const now = new Date();
+        const daysUntil = Math.max(0, Math.ceil((raceDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+        const isPast = now > raceDate;
+        return (
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1">
+                <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-1">Next race</div>
+                <div className="text-base font-medium text-gray-900">Garmin Marathon</div>
+                <div className="text-sm text-gray-500 mt-0.5">Durham, NC · May 2, 2026</div>
+              </div>
+              <div className="text-right flex-shrink-0">
+                {isPast ? (
+                  <div className="text-xs text-gray-400">Race day!</div>
+                ) : (
+                  <>
+                    <div className="text-2xl font-medium text-[#1D9E75]">{daysUntil}</div>
+                    <div className="text-xs text-gray-400">days away</div>
+                  </>
+                )}
+              </div>
+            </div>
+            {!isPast && (
+              <div className="mt-3">
+                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-[#1D9E75] rounded-full transition-all"
+                    style={{
+                      width: `${Math.min(100, Math.max(2, ((16 - daysUntil) / 16) * 100))}%`,
+                    }}
+                  />
+                </div>
+                <div className="text-xs text-gray-400 mt-1">{daysUntil} days to go — keep stacking those miles</div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
       {/* Section 1: This week in the club */}
       <section>
         <h2 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">This week in the club</h2>
@@ -309,7 +349,6 @@ export default async function HomePage() {
               </div>
             </div>
 
-            {!isMockMode && <BackfillButton />}
           </div>
         </section>
       )}

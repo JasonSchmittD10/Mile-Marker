@@ -4,12 +4,11 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateProfile } from './actions';
 
-const CREW_OPTIONS = [
-  { value: '', label: '— No crew yet' },
-  { value: 'syllabus_weekers', label: 'The Syllabus Weekers' },
-  { value: 'quarter_lifers', label: 'The Quarter-Lifers' },
-  { value: 'minivan_mafia', label: 'The Minivan Mafia' },
-  { value: 'the_legends', label: 'The Legends' },
+const CREW_CARDS = [
+  { value: 'syllabus_weekers', label: 'The Syllabus Weekers', emoji: '📖', tagline: 'Always studying the course', bg: '#EEEDFE', text: '#3C3489', borderColor: '#9B96D4' },
+  { value: 'quarter_lifers',   label: 'The Quarter-Lifers',   emoji: '🌱', tagline: 'Finding our stride',         bg: '#E6F1FB', text: '#0C447C', borderColor: '#7AB0DC' },
+  { value: 'minivan_mafia',    label: 'The Minivan Mafia',    emoji: '🚐', tagline: 'Rolling deep',               bg: '#FAEEDA', text: '#633806', borderColor: '#D4A96A' },
+  { value: 'the_legends',      label: 'The Legends',          emoji: '🏆', tagline: 'Running since forever',      bg: '#FAECE7', text: '#712B13', borderColor: '#D4876A' },
 ];
 
 interface Props {
@@ -97,16 +96,37 @@ export default function ProfileEditForm({ athleteId, initial }: Props) {
         />
       </div>
       <div>
-        <label className="block text-xs font-medium text-gray-700 mb-1">Your crew</label>
-        <select
-          value={crew}
-          onChange={(e) => setCrew(e.target.value)}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#1D9E75]"
-        >
-          {CREW_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
+        <label className="block text-xs font-medium text-gray-700 mb-2">Your crew</label>
+        <div className="grid grid-cols-2 gap-2">
+          {CREW_CARDS.map((c) => {
+            const selected = crew === c.value;
+            return (
+              <button
+                key={c.value}
+                type="button"
+                onClick={() => setCrew(c.value)}
+                className="text-left p-3 rounded-xl border-2 transition-all"
+                style={{
+                  borderColor: selected ? c.borderColor : '#e5e7eb',
+                  backgroundColor: selected ? c.bg : '#f9fafb',
+                }}
+              >
+                <div className="text-2xl mb-1">{c.emoji}</div>
+                <div className="text-xs font-medium leading-tight" style={{ color: selected ? c.text : '#374151' }}>{c.label}</div>
+                <div className="text-[10px] mt-0.5" style={{ color: selected ? c.text : '#9ca3af' }}>{c.tagline}</div>
+              </button>
+            );
+          })}
+        </div>
+        {crew && (
+          <button
+            type="button"
+            onClick={() => setCrew('')}
+            className="mt-2 text-xs text-gray-400 hover:text-gray-600"
+          >
+            — No crew yet
+          </button>
+        )}
         <p className="text-xs text-gray-400 mt-1">Used in the weekly crew battle leaderboard.</p>
       </div>
       {error && <p className="text-xs text-red-500">{error}</p>}

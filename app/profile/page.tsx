@@ -9,6 +9,7 @@ import {
 } from '@/mock/data';
 import type { AthleteWithStats, Badge, Streak, Activity } from '@/types';
 import ProfileEditForm from './ProfileEditForm';
+import BackfillButton from '@/app/components/BackfillButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -293,6 +294,12 @@ export default async function ProfilePage() {
           </div>
         </div>
       </div>
+
+      {!isMockMode && (
+        <div className="pb-2">
+          <BackfillButton />
+        </div>
+      )}
     </div>
   );
 }
