@@ -41,12 +41,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="bg-gray-50 min-h-screen">
         <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
           <div className="max-w-2xl mx-auto px-4 h-12 flex items-center">
-            <span className="text-[#1D9E75] font-semibold text-base tracking-tight">
+            <span className="text-gray-900 font-semibold text-base tracking-tight">
               Antioch Raleigh Run Club
             </span>
           </div>
         </header>
-        <main className="max-w-2xl mx-auto px-4 py-5 pb-28">
+        <main className="max-w-2xl mx-auto px-4 py-5 pb-36">
           {children}
         </main>
         <BottomNav initials={initials} profileImageUrl={profileImageUrl} />

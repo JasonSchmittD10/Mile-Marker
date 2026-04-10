@@ -136,22 +136,26 @@ export default function RaceCard({ race, isAdmin }: Props) {
 
         {/* Countdown */}
         {countdown.done ? (
-          <div className="text-3xl font-bold text-center py-6">Race day! 🏁</div>
+          <div className="text-3xl font-bold text-center py-8">Race day! 🏁</div>
         ) : (
-          <div className="flex items-end justify-center gap-2 py-4">
-            {segments.map(({ val, label }, i) => (
-              <div key={label} className="flex items-end gap-2">
-                {i > 0 && (
-                  <span className="text-5xl font-bold text-white/40 pb-7 leading-none">:</span>
-                )}
-                <div className="text-center">
-                  <div className="text-6xl font-bold tabular-nums leading-none tracking-tight">
-                    {pad(val)}
+          <div className="flex items-end justify-center py-6" style={{ gap: segments.length >= 4 ? '6px' : '10px' }}>
+            {segments.map(({ val, label }, i) => {
+              const numCls = segments.length >= 4 ? 'text-4xl' : 'text-6xl';
+              const colonCls = segments.length >= 4 ? 'text-3xl pb-6' : 'text-5xl pb-8';
+              return (
+                <div key={label} className="flex items-end" style={{ gap: segments.length >= 4 ? '6px' : '10px' }}>
+                  {i > 0 && (
+                    <span className={`${colonCls} font-bold text-white/40 leading-none`}>:</span>
+                  )}
+                  <div className="text-center">
+                    <div className={`${numCls} font-bold tabular-nums leading-none tracking-tight`}>
+                      {pad(val)}
+                    </div>
+                    <div className="text-[10px] text-white/50 mt-2 tracking-widest uppercase">{label}</div>
                   </div>
-                  <div className="text-xs text-white/50 mt-3 tracking-widest uppercase">{label}</div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 

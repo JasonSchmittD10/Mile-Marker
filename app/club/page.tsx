@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import {
   isMockMode,
   MOCK_ATHLETES_WITH_STATS,
@@ -155,6 +156,35 @@ export default async function ClubPage() {
         </div>
         <div className="text-xs text-gray-400 mt-2">{routeProgress.toFixed(1)}% of the way there</div>
       </div>
+
+      {/* Heatmap */}
+      <Link
+        href="/heatmap"
+        className="flex items-center justify-between bg-white border border-gray-200 rounded-xl p-4 hover:border-gray-300 hover:shadow-sm transition-all group"
+      >
+        <div className="flex items-center gap-3">
+          <div className="h-9 w-9 rounded-lg bg-[#1D9E75]/10 flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-[#1D9E75]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <rect x="3" y="4" width="3" height="3" rx="0.5" />
+              <rect x="7" y="4" width="3" height="3" rx="0.5" />
+              <rect x="11" y="4" width="3" height="3" rx="0.5" />
+              <rect x="3" y="8" width="3" height="3" rx="0.5" />
+              <rect x="7" y="8" width="3" height="3" rx="0.5" />
+              <rect x="11" y="8" width="3" height="3" rx="0.5" />
+              <rect x="3" y="12" width="3" height="3" rx="0.5" />
+              <rect x="7" y="12" width="3" height="3" rx="0.5" />
+              <rect x="11" y="12" width="3" height="3" rx="0.5" />
+            </svg>
+          </div>
+          <div>
+            <div className="text-sm font-medium text-gray-900">Club Heatmap</div>
+            <div className="text-xs text-gray-400 mt-0.5">Activity grid for all members</div>
+          </div>
+        </div>
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-300 group-hover:text-gray-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+      </Link>
 
       {/* Member roster */}
       <section>
