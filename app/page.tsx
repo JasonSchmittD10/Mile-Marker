@@ -12,6 +12,7 @@ import {
   getISOWeek,
 } from '@/mock/data';
 import type { AthleteWithStats, FeedEvent, WeeklyStats, Badge, Streak } from '@/types';
+import RaceCard, { type RaceData } from '@/app/components/RaceCard';
 
 const RALEIGH_TO_JERUSALEM_MILES = 5843;
 
@@ -46,13 +47,21 @@ function ProgressBar({ value, max, color = '#1D9E75' }: { value: number; max: nu
   );
 }
 
+const MOCK_RACE: RaceData = {
+  id: 'mock-race',
+  title: 'Garmin Marathon',
+  location: 'Durham, NC',
+  race_date: '2026-05-02T11:00:00Z',
+  image_url: null,
+  description: null,
+};
+
 async function getPageData() {
   if (isMockMode) {
     const weeklyStats = getMockWeeklyStats();
     const feedEvents = getMockFeedEvents();
-    // Use first mock athlete as "logged in" user
     const me = MOCK_ATHLETES_WITH_STATS[0];
-    return { weeklyStats, feedEvents, me };
+    return { weeklyStats, feedEvents, me, race: MOCK_RACE, isAdmin: false };
   }
 
   // Real Supabase path
@@ -74,10 +83,12 @@ async function getPageData() {
     { data: weekActivities },
     { data: allActivities },
     { count: weekBadgeCount },
+    { data: raceRow },
   ] = await Promise.all([
     supabase.from('activities').select('athlete_id, distance_meters').gte('start_date_local', weekStart),
     supabase.from('activities').select('distance_meters'),
     supabase.from('badges').select('id', { count: 'exact', head: true }).gte('earned_at', weekStart),
+    supabase.from('featured_race').select('*').eq('active', true).order('updated_at', { ascending: false }).limit(1).single(),
   ]);
 
   const membersActive = new Set((weekActivities ?? []).map((a: { athlete_id: string }) => a.athlete_id)).size;
@@ -101,8 +112,9 @@ async function getPageData() {
     badgeType: b.badge_type as import('@/types').BadgeType,
   }));
 
-  // Current user
+  // Current user + admin check
   let me: AthleteWithStats | null = null;
+  let isAdmin = false;
   if (athleteId) {
     const { data: athleteData } = await supabase
       .from('athletes')
@@ -122,14 +134,16 @@ async function getPageData() {
         activities: athleteData.activities ?? [],
         totalDistanceMeters: (athleteData.activities ?? []).reduce((s: number, a: { distance_meters: number }) => s + Number(a.distance_meters), 0),
       };
+      isAdmin = !!athleteData.is_admin;
     }
   }
 
-  return { weeklyStats, feedEvents, me };
+  const race: RaceData = raceRow ?? MOCK_RACE;
+  return { weeklyStats, feedEvents, me, race, isAdmin };
 }
 
 export default async function HomePage() {
-  const { weeklyStats, feedEvents, me } = await getPageData();
+  const { weeklyStats, feedEvents, me, race, isAdmin } = await getPageData();
   const { membersActive, totalMilesThisWeek, badgesEarnedThisWeek, totalMilesEver } = weeklyStats;
   const routeProgress = Math.min(100, (totalMilesEver / RALEIGH_TO_JERUSALEM_MILES) * 100);
   const currentWeek = getCurrentISOWeek();
@@ -167,46 +181,7 @@ export default async function HomePage() {
   return (
     <div className="space-y-5">
       {/* Current race */}
-      {(() => {
-        const raceDate = new Date('2026-05-02T07:00:00');
-        const now = new Date();
-        const daysUntil = Math.max(0, Math.ceil((raceDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
-        const isPast = now > raceDate;
-        return (
-          <div className="bg-white border border-gray-200 rounded-xl p-5">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex-1">
-                <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-1">Next race</div>
-                <div className="text-base font-medium text-gray-900">Garmin Marathon</div>
-                <div className="text-sm text-gray-500 mt-0.5">Durham, NC · May 2, 2026</div>
-              </div>
-              <div className="text-right flex-shrink-0">
-                {isPast ? (
-                  <div className="text-xs text-gray-400">Race day!</div>
-                ) : (
-                  <>
-                    <div className="text-2xl font-medium text-[#1D9E75]">{daysUntil}</div>
-                    <div className="text-xs text-gray-400">days away</div>
-                  </>
-                )}
-              </div>
-            </div>
-            {!isPast && (
-              <div className="mt-3">
-                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-[#1D9E75] rounded-full transition-all"
-                    style={{
-                      width: `${Math.min(100, Math.max(2, ((16 - daysUntil) / 16) * 100))}%`,
-                    }}
-                  />
-                </div>
-                <div className="text-xs text-gray-400 mt-1">{daysUntil} days to go — keep stacking those miles</div>
-              </div>
-            )}
-          </div>
-        );
-      })()}
+      <RaceCard race={race} isAdmin={isAdmin} />
       {/* Section 1: This week in the club */}
       <section>
         <h2 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">This week in the club</h2>
