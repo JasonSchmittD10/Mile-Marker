@@ -209,12 +209,12 @@ export default async function LeaderboardsPage() {
 
       <div className="border-t border-gray-200" />
 
-      {/* 3. Ministry battle */}
+      {/* 3. Crew battle */}
       <section>
-        <h2 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">Ministry battle — miles this week</h2>
+        <h2 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">Crew battle — miles this week</h2>
         {ministryEntries.length === 0 ? (
           <div className="bg-white border border-gray-200 rounded-xl p-5 text-sm text-gray-400 text-center">
-            No ministry group data this week yet.
+            No crew data this week yet. Resets Monday. Set your crew in your profile.
           </div>
         ) : (
           <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">

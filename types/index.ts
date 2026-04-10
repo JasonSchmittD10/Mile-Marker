@@ -9,6 +9,11 @@ export interface Athlete {
   token_expires_at: number | null;
   scopes_accepted: string | null;
   ministry_group: string | null;
+  strava_profile_url: string | null;
+  city: string | null;
+  motivating_verse: string | null;
+  motivating_verse_ref: string | null;
+  bio: string | null;
   created_at: string;
 }
 
@@ -116,6 +121,7 @@ export interface StravaAthleteProfile {
   firstname: string;
   lastname: string;
   profile_medium: string;
+  city?: string;
 }
 
 export interface StravaActivity {

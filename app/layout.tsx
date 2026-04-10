@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import Link from 'next/link';
+import { cookies } from 'next/headers';
 
 export const metadata: Metadata = {
   title: 'Mile Marker',
@@ -34,12 +35,38 @@ function UsersIcon() {
 function MapIcon() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498l4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 00-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498l4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 00-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c-.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0z" />
     </svg>
   );
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+async function getNavAthleteInitials(): Promise<string | null> {
+  try {
+    const cookieStore = await cookies();
+    const athleteId = cookieStore.get('mm_athlete_id')?.value;
+    if (!athleteId || !process.env.NEXT_PUBLIC_SUPABASE_URL) return null;
+
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+    const { data } = await supabase
+      .from('athletes')
+      .select('firstname, lastname')
+      .eq('id', athleteId)
+      .single();
+
+    if (!data) return null;
+    return `${data.firstname?.[0] ?? ''}${data.lastname?.[0] ?? ''}`.toUpperCase() || null;
+  } catch {
+    return null;
+  }
+}
+
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const initials = await getNavAthleteInitials();
+
   return (
     <html lang="en">
       <body className="bg-gray-50 min-h-screen">
@@ -64,6 +91,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/heatmap" className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg text-gray-500 hover:text-[#1D9E75] hover:bg-gray-50 transition-colors">
                 <MapIcon />
                 <span className="text-[10px] font-medium hidden sm:block">Heatmap</span>
+              </Link>
+              <Link href="/profile" className="flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg text-gray-500 hover:text-[#1D9E75] hover:bg-gray-50 transition-colors">
+                {initials ? (
+                  <div className="h-7 w-7 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-medium">
+                    {initials}
+                  </div>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                  </svg>
+                )}
+                <span className="text-[10px] font-medium hidden sm:block">Profile</span>
               </Link>
             </nav>
           </div>

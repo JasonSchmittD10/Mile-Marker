@@ -96,7 +96,7 @@ async function getPageData() {
   const feedEvents: FeedEvent[] = (recentBadges ?? []).map((b: { id: string; badge_type: string; earned_at: string; activity_id: string | null; athletes: { id: string; firstname: string; lastname: string; strava_id: number; profile_medium: string | null; access_token: string | null; refresh_token: string | null; token_expires_at: number | null; scopes_accepted: string | null; ministry_group: string | null; created_at: string } }) => ({
     id: `feed-${b.id}`,
     type: 'badge' as const,
-    athlete: { ...b.athletes, initials: `${b.athletes.firstname[0]}${b.athletes.lastname[0]}`, avatarBg: 'bg-teal-100', avatarText: 'text-teal-700' },
+    athlete: { ...b.athletes, strava_profile_url: null, city: null, motivating_verse: null, motivating_verse_ref: null, bio: null, initials: `${b.athletes.firstname[0]}${b.athletes.lastname[0]}`, avatarBg: 'bg-teal-100', avatarText: 'text-teal-700' },
     description: `earned the ${(b.badge_type as string).replace(/_/g, ' ')} badge`,
     timestamp: b.earned_at,
     badgeType: b.badge_type as import('@/types').BadgeType,
@@ -232,7 +232,20 @@ export default async function HomePage() {
               <Avatar initials={me.initials} avatarBg={me.avatarBg} avatarText={me.avatarText} size="lg" />
               <div>
                 <div className="font-medium text-gray-900">{me.firstname} {me.lastname}</div>
-                {me.ministry_group && <div className="text-xs text-gray-500">{me.ministry_group}</div>}
+                {me.ministry_group && (() => {
+                  const crewColors: Record<string, { label: string; bg: string; text: string }> = {
+                    syllabus_weekers: { label: 'The Syllabus Weekers', bg: '#EEEDFE', text: '#3C3489' },
+                    quarter_lifers:   { label: 'The Quarter-Lifers',   bg: '#E6F1FB', text: '#0C447C' },
+                    minivan_mafia:    { label: 'The Minivan Mafia',     bg: '#FAEEDA', text: '#633806' },
+                    the_legends:      { label: 'The Legends',           bg: '#FAECE7', text: '#712B13' },
+                  };
+                  const crew = crewColors[me.ministry_group!] ?? { label: me.ministry_group, bg: '#F1EFE8', text: '#444441' };
+                  return (
+                    <span className="inline-block text-xs font-medium px-2 py-0.5 rounded-full mt-0.5" style={{ backgroundColor: crew.bg, color: crew.text }}>
+                      {crew.label}
+                    </span>
+                  );
+                })()}
               </div>
             </div>
 
